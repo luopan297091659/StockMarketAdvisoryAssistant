@@ -1,9 +1,14 @@
 <script setup lang="ts">
-import * as echarts from "echarts";
+import { LineChart } from "echarts/charts";
+import { GridComponent, TooltipComponent } from "echarts/components";
+import * as echarts from "echarts/core";
+import { CanvasRenderer } from "echarts/renderers";
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 
+echarts.use([LineChart, GridComponent, TooltipComponent, CanvasRenderer]);
+
 const props = defineProps<{ bars: Array<{ endTime: string; close: string }> }>();
-const element = ref<HTMLDivElement>(); let chart: echarts.ECharts | null = null;
+const element = ref<HTMLDivElement>(); let chart: echarts.EChartsType | null = null;
 function render() {
   if (!element.value) return;
   chart ??= echarts.init(element.value);
@@ -23,4 +28,3 @@ onBeforeUnmount(() => { window.removeEventListener("resize", resize); chart?.dis
 </script>
 
 <template><div ref="element" class="price-chart" role="img" aria-label="合成历史价格走势图"></div></template>
-

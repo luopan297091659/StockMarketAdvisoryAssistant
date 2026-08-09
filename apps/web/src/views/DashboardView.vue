@@ -47,7 +47,7 @@ onMounted(load);
 <template>
   <div class="app-shell">
     <header class="topbar">
-      <div class="brand-inline"><span class="brand-mark small">EA</span><div><strong>{{ locale.text.title }}</strong><small>Equity Atlas</small></div></div>
+      <div class="brand-inline"><img class="brand-mark small" src="/brand/equity-atlas-icon.png" alt="" /><div><strong>{{ locale.text.title }}</strong><small>Equity Atlas</small></div></div>
       <div class="top-actions"><span class="demo-pill">{{ locale.text.demo }}</span><select :value="locale.locale" aria-label="语言" @change="locale.setLocale(($event.target as HTMLSelectElement).value as Locale)"><option value="zh">中文</option><option value="ja">日本語</option><option value="en">English</option></select><button class="text-button" @click="signOut">{{ locale.text.logout }}</button></div>
     </header>
     <main class="dashboard">
@@ -85,4 +85,3 @@ onMounted(load);
     </main>
   </div>
 </template>
-

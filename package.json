@@ -8,15 +8,19 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run build --workspaces --if-present",
+    "build": "npm run build --workspace @equity-atlas/market-identifiers && npm run build --workspace @equity-atlas/product-api && npm run build --workspace @equity-atlas/web",
+    "pretypecheck": "npm run build --workspace @equity-atlas/market-identifiers",
     "typecheck": "npm run typecheck --workspaces --if-present",
+    "pretest": "npm run build --workspace @equity-atlas/market-identifiers",
     "test": "npm run test --workspaces --if-present",
+    "predev": "npm run build --workspace @equity-atlas/market-identifiers",
     "dev": "concurrently -k -n research,api,web -c yellow,cyan,green \"npm:dev:research\" \"npm:dev:api\" \"npm:dev:web\"",
     "dev:research": ".venv\\Scripts\\python.exe -m uvicorn app.main:app --app-dir apps/research-engine --host 127.0.0.1 --port 8001 --reload",
     "dev:api": "npm run dev --workspace @equity-atlas/product-api",
     "dev:web": "npm run dev --workspace @equity-atlas/web",
     "test:research": ".venv\\Scripts\\python.exe -m pytest apps/research-engine/tests",
     "test:all": "npm run test && npm run test:research",
+    "verify": "npm run typecheck && npm run test:all && npm run build",
     "setup:python": "python -m venv .venv && .venv\\Scripts\\python.exe -m pip install -r apps/research-engine/requirements-dev.txt"
   },
   "devDependencies": {
@@ -29,4 +33,3 @@
     "npm": ">=10"
   }
 }
-

@@ -24,7 +24,7 @@ async function submit() {
 <template>
   <main class="auth-shell">
     <section class="brand-panel">
-      <div class="brand-mark">EA</div>
+      <img class="brand-mark" src="/brand/equity-atlas-icon.png" alt="Equity Atlas" />
       <p class="eyebrow">EQUITY ATLAS</p>
       <h1>跨市场研究，<br />先看证据，再看观点。</h1>
       <p>统一研究 A 股、港股、美股和日股。每份报告保留快照、来源、时间与数据限制。</p>
@@ -43,4 +43,3 @@ async function submit() {
     </section>
   </main>
 </template>
-

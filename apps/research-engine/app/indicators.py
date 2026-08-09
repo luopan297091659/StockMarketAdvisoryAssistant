@@ -25,7 +25,7 @@ def _ema(values: list[float], period: int) -> list[float]:
 def _rsi(values: list[float], period: int = 14) -> float | None:
     if len(values) <= period:
         return None
-    changes = [current - previous for previous, current in zip(values, values[1:], strict=True)]
+    changes = [current - previous for previous, current in zip(values, values[1:])]
     gains = [max(change, 0.0) for change in changes]
     losses = [max(-change, 0.0) for change in changes]
     average_gain = fmean(gains[:period])
@@ -75,8 +75,7 @@ def calculate_indicators(closes: list[float]) -> IndicatorResult:
         values["volatility20Annualized"] = None
         limitations.append("20-day volatility requires at least 21 complete bars")
     else:
-        returns = [math.log(current / previous) for previous, current in zip(closes[-21:], closes[-20:], strict=True)]
+        returns = [math.log(current / previous) for previous, current in zip(closes[-21:], closes[-20:])]
         values["volatility20Annualized"] = pstdev(returns) * math.sqrt(252) * 100
 
     return IndicatorResult(values=values, limitations=tuple(limitations))
-

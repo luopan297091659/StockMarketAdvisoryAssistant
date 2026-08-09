@@ -6,7 +6,7 @@ import rateLimit from "@fastify/rate-limit";
 import { Algorithm, hash as hashPassword, verify as verifyPassword } from "@node-rs/argon2";
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from "fastify";
 import { z } from "zod";
-import { InstrumentNormalizationError, searchInstruments, type Market } from "@equity-atlas/market-identifiers";
+import { InstrumentNormalizationError, normalizeInstrument, searchInstruments, type Market } from "@equity-atlas/market-identifiers";
 import type { ResearchRunner } from "./research-client.js";
 import type { DataStore } from "./store.js";
 import type { AuthClaims, ReportRecord, ResearchTaskRecord, SessionRecord, UserRecord, WatchlistRecord } from "./types.js";
@@ -216,12 +216,20 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
     const body = z.object({ instrument: z.record(z.string(), z.unknown()) }).strict().parse(request.body);
     const instrumentId = String(body.instrument.instrumentId ?? "");
     if (!instrumentId) throw new HttpProblem(422, "INVALID_INSTRUMENT", "缺少 instrumentId");
+    let normalizedInstrument: Record<string, unknown>;
+    try {
+      const market = z.enum(["CN", "HK", "US", "JP", "GLOBAL"]).parse(body.instrument.market);
+      normalizedInstrument = { ...normalizeInstrument(String(body.instrument.displaySymbol ?? ""), market) };
+    } catch {
+      throw new HttpProblem(422, "INVALID_INSTRUMENT", "标的身份无法验证");
+    }
+    if (normalizedInstrument.instrumentId !== instrumentId) throw new HttpProblem(422, "INSTRUMENT_ID_MISMATCH", "标的代码与内部 ID 不一致");
     return options.store.transaction((state) => {
       const watchlist = state.watchlists.find((item) => item.id === params.id && item.tenantId === claims(request).tenantId);
       if (!watchlist) throw new HttpProblem(404, "WATCHLIST_NOT_FOUND", "观察列表不存在");
       const existing = watchlist.items.find((item) => item.instrument.instrumentId === instrumentId);
       if (existing) return existing;
-      const item = { id: randomUUID(), instrument: body.instrument, createdAt: now() };
+      const item = { id: randomUUID(), instrument: normalizedInstrument, createdAt: now() };
       watchlist.items.push(item);
       watchlist.updatedAt = now();
       return item;
@@ -289,4 +297,3 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
 
   return app;
 }
-
