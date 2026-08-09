@@ -1,0 +1,21 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// The runnable MVP persists its repository aggregate transactionally here.
+// The normalized production model is specified in docs/data/database-entity-model.md
+// and will replace this demo aggregate using expand/migrate/contract migrations.
+model AppState {
+  id        Int      @id
+  payload   Json
+  version   Int      @default(0)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("app_state")
+}
+

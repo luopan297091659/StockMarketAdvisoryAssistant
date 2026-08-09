@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://equity-atlas.local/schemas/structured-report/1.0.0",
+  "title": "Structured Research Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "reportId", "snapshotId", "instrumentId", "symbol", "market", "analysisTime", "dataCutoff", "marketPhase", "rating", "confidence", "scores", "trend", "thesisStatus", "summary", "bullCase", "bearCase", "keyRisks", "catalysts", "supportLevels", "resistanceLevels", "agentDisagreements", "nextVerificationItems", "dataQuality", "claims", "sources", "disclaimer"],
+  "properties": {
+    "schemaVersion": { "const": "1.0.0" },
+    "reportId": { "type": "string", "minLength": 1 },
+    "snapshotId": { "type": "string", "minLength": 1 },
+    "instrumentId": { "type": "string", "minLength": 1, "maxLength": 96 },
+    "symbol": { "type": "string", "minLength": 1, "maxLength": 48 },
+    "market": { "enum": ["CN", "HK", "US", "JP", "GLOBAL"] },
+    "analysisTime": { "type": "string", "format": "date-time" },
+    "dataCutoff": { "type": "string", "format": "date-time" },
+    "marketPhase": { "enum": ["PRE_MARKET", "OPEN", "LUNCH_BREAK", "POST_MARKET", "CLOSED", "HOLIDAY", "UNKNOWN"] },
+    "rating": { "enum": ["POSITIVE", "WATCH", "NEUTRAL", "RISK_INCREASED", "AVOID"] },
+    "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+    "scores": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fundamental", "technical", "news", "risk", "overall"],
+      "properties": {
+        "fundamental": { "$ref": "#/$defs/nullableScore" },
+        "technical": { "$ref": "#/$defs/nullableScore" },
+        "news": { "$ref": "#/$defs/nullableScore" },
+        "risk": { "$ref": "#/$defs/nullableScore" },
+        "overall": { "$ref": "#/$defs/nullableScore" }
+      }
+    },
+    "trend": { "enum": ["BULLISH", "BEARISH", "SIDEWAYS", "MIXED", "INSUFFICIENT_DATA"] },
+    "thesisStatus": { "enum": ["STRENGTHENED", "UNCHANGED", "WEAKENED", "INVALIDATED", "INSUFFICIENT_DATA", "NOT_PROVIDED"] },
+    "summary": { "$ref": "#/$defs/evidenceStatement" },
+    "bullCase": { "$ref": "#/$defs/statementList" },
+    "bearCase": { "$ref": "#/$defs/statementList" },
+    "keyRisks": { "$ref": "#/$defs/statementList" },
+    "catalysts": { "$ref": "#/$defs/statementList" },
+    "supportLevels": { "$ref": "#/$defs/levelList" },
+    "resistanceLevels": { "$ref": "#/$defs/levelList" },
+    "agentDisagreements": { "$ref": "#/$defs/statementList" },
+    "nextVerificationItems": { "$ref": "#/$defs/statementList" },
+    "dataQuality": { "$ref": "#/$defs/dataQuality" },
+    "claims": { "type": "array", "items": { "$ref": "#/$defs/claim" } },
+    "sources": { "type": "array", "items": { "$ref": "#/$defs/sourceRef" } },
+    "disclaimer": { "type": "string", "minLength": 1, "maxLength": 1000 }
+  },
+  "$defs": {
+    "nullableScore": { "type": ["integer", "null"], "minimum": 0, "maximum": 100 },
+    "evidenceStatement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["text", "claimIds"],
+      "properties": {
+        "text": { "type": "string", "minLength": 1, "maxLength": 5000 },
+        "claimIds": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } }
+      }
+    },
+    "statementList": { "type": "array", "maxItems": 100, "items": { "$ref": "#/$defs/evidenceStatement" } },
+    "levelList": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["value", "currency", "basis", "claimIds"],
+        "properties": {
+          "value": { "type": "string", "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$" },
+          "currency": { "type": "string", "pattern": "^[A-Z]{3}$" },
+          "basis": { "type": "string", "minLength": 1, "maxLength": 500 },
+          "claimIds": { "type": "array", "uniqueItems": true, "items": { "type": "string" } }
+        }
+      }
+    },
+    "dataQuality": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["score", "level", "limitations"],
+      "properties": {
+        "score": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "level": { "enum": ["HIGH", "MEDIUM", "LOW", "INSUFFICIENT"] },
+        "limitations": { "type": "array", "items": { "type": "string", "minLength": 1, "maxLength": 500 } }
+      }
+    },
+    "claim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["claimId", "text", "claimType", "timeSensitive", "sourceIds", "asOf"],
+      "properties": {
+        "claimId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "text": { "type": "string", "minLength": 1, "maxLength": 2000 },
+        "claimType": { "enum": ["FACT", "CALCULATION", "INTERPRETATION", "OPINION", "LIMITATION"] },
+        "timeSensitive": { "type": "boolean" },
+        "sourceIds": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+        "asOf": { "type": ["string", "null"], "format": "date-time" }
+      }
+    },
+    "sourceRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sourceId", "title", "provider", "asOf"],
+      "properties": {
+        "sourceId": { "type": "string", "minLength": 1 },
+        "title": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "provider": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "url": { "type": ["string", "null"], "format": "uri" },
+        "asOf": { "type": "string", "format": "date-time" }
+      }
+    }
+  }
+}

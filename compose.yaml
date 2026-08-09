@@ -1,0 +1,71 @@
+name: equity-atlas
+
+services:
+  postgres:
+    image: postgres:16.6-alpine
+    environment:
+      POSTGRES_DB: equity_atlas
+      POSTGRES_USER: equity_atlas
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-local-development-password}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U equity_atlas -d equity_atlas"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  research-engine:
+    build:
+      context: ./apps/research-engine
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health/ready', timeout=2)"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  product-api:
+    build:
+      context: .
+      dockerfile: apps/product-api/Dockerfile
+    environment:
+      NODE_ENV: production
+      API_HOST: 0.0.0.0
+      API_PORT: 8000
+      WEB_ORIGIN: http://127.0.0.1:8080
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET to at least 32 random characters}
+      DATABASE_URL: postgresql://equity_atlas:${POSTGRES_PASSWORD:-local-development-password}@postgres:5432/equity_atlas?schema=public
+      RESEARCH_ENGINE_URL: http://research-engine:8001
+    command: ["sh", "-c", "npx prisma migrate deploy --schema apps/product-api/prisma/schema.prisma && node apps/product-api/dist/main.js"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      research-engine:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8000/health/ready').then(r=>{if(!r.ok)process.exit(1)})"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        VITE_API_BASE_URL: http://127.0.0.1:8000/api/v1
+    depends_on:
+      product-api:
+        condition: service_healthy
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+

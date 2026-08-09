@@ -1,0 +1,252 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://equity-atlas.local/schemas/research-snapshot/1.0.0",
+  "title": "Research Snapshot",
+  "description": "Immutable, point-in-time research input. All timestamps are RFC 3339 and the persisted canonical form uses UTC.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "snapshotId",
+    "instrument",
+    "analysisTime",
+    "dataCutoff",
+    "marketPhase",
+    "calendarVersion",
+    "quote",
+    "historicalBars",
+    "technicalIndicators",
+    "fundamentals",
+    "financialStatements",
+    "news",
+    "corporateEvents",
+    "portfolioContext",
+    "investmentThesis",
+    "dataQuality",
+    "sources"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "1.0.0" },
+    "snapshotId": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "instrument": { "$ref": "#/$defs/instrument" },
+    "analysisTime": { "$ref": "#/$defs/timestamp" },
+    "dataCutoff": { "$ref": "#/$defs/timestamp" },
+    "marketPhase": {
+      "enum": ["PRE_MARKET", "OPEN", "LUNCH_BREAK", "POST_MARKET", "CLOSED", "HOLIDAY", "UNKNOWN"]
+    },
+    "calendarVersion": { "type": "string", "minLength": 1, "maxLength": 64 },
+    "quote": { "oneOf": [{ "$ref": "#/$defs/quote" }, { "type": "null" }] },
+    "historicalBars": {
+      "type": "array",
+      "maxItems": 10000,
+      "items": { "$ref": "#/$defs/bar" }
+    },
+    "technicalIndicators": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/provenanceValue" },
+      "propertyNames": { "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$" }
+    },
+    "fundamentals": { "$ref": "#/$defs/versionedDataset" },
+    "financialStatements": { "$ref": "#/$defs/versionedDataset" },
+    "news": {
+      "type": "array",
+      "maxItems": 500,
+      "items": { "$ref": "#/$defs/newsItem" }
+    },
+    "corporateEvents": {
+      "type": "array",
+      "maxItems": 500,
+      "items": { "$ref": "#/$defs/corporateEvent" }
+    },
+    "portfolioContext": { "oneOf": [{ "$ref": "#/$defs/portfolioContext" }, { "type": "null" }] },
+    "investmentThesis": { "oneOf": [{ "$ref": "#/$defs/investmentThesis" }, { "type": "null" }] },
+    "dataQuality": { "$ref": "#/$defs/dataQuality" },
+    "sources": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/source" }
+    }
+  },
+  "$defs": {
+    "timestamp": { "type": "string", "format": "date-time" },
+    "decimal": { "type": "string", "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$" },
+    "instrument": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["instrumentId", "canonicalSymbol", "displaySymbol", "mic", "market", "instrumentType", "currency", "timezone", "names"],
+      "properties": {
+        "instrumentId": { "type": "string", "minLength": 1, "maxLength": 96 },
+        "canonicalSymbol": { "type": "string", "minLength": 1, "maxLength": 48 },
+        "displaySymbol": { "type": "string", "minLength": 1, "maxLength": 48 },
+        "mic": { "type": "string", "pattern": "^[A-Z0-9]{4}$" },
+        "market": { "enum": ["CN", "HK", "US", "JP", "GLOBAL"] },
+        "instrumentType": { "enum": ["EQUITY", "ETF", "INDEX"] },
+        "currency": { "type": "string", "pattern": "^[A-Z]{3}$" },
+        "timezone": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "names": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": { "type": "string", "minLength": 1, "maxLength": 300 }
+        }
+      }
+    },
+    "provenanceValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "provider", "asOf", "receivedAt", "isDelayed", "quality", "freshness", "sourceIds"],
+      "properties": {
+        "value": { "type": ["string", "number", "integer", "boolean", "null"] },
+        "unit": { "type": ["string", "null"], "maxLength": 32 },
+        "currency": { "type": ["string", "null"], "pattern": "^[A-Z]{3}$" },
+        "provider": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "asOf": { "$ref": "#/$defs/timestamp" },
+        "receivedAt": { "$ref": "#/$defs/timestamp" },
+        "isDelayed": { "type": "boolean" },
+        "quality": { "enum": ["HIGH", "MEDIUM", "LOW", "INSUFFICIENT"] },
+        "freshness": { "enum": ["FRESH", "STALE", "UNKNOWN"] },
+        "sourceIds": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1, "maxLength": 128 }
+        },
+        "resolutionPolicy": { "type": ["string", "null"], "maxLength": 80 },
+        "limitations": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1, "maxLength": 500 }
+        }
+      }
+    },
+    "quote": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["last", "currency"],
+      "properties": {
+        "last": { "$ref": "#/$defs/provenanceValue" },
+        "open": { "$ref": "#/$defs/provenanceValue" },
+        "high": { "$ref": "#/$defs/provenanceValue" },
+        "low": { "$ref": "#/$defs/provenanceValue" },
+        "previousClose": { "$ref": "#/$defs/provenanceValue" },
+        "volume": { "$ref": "#/$defs/provenanceValue" },
+        "currency": { "type": "string", "pattern": "^[A-Z]{3}$" }
+      }
+    },
+    "bar": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["startTime", "endTime", "interval", "open", "high", "low", "close", "volume", "isComplete", "adjustment", "sourceIds"],
+      "properties": {
+        "startTime": { "$ref": "#/$defs/timestamp" },
+        "endTime": { "$ref": "#/$defs/timestamp" },
+        "interval": { "enum": ["1d"] },
+        "open": { "$ref": "#/$defs/decimal" },
+        "high": { "$ref": "#/$defs/decimal" },
+        "low": { "$ref": "#/$defs/decimal" },
+        "close": { "$ref": "#/$defs/decimal" },
+        "volume": { "$ref": "#/$defs/decimal" },
+        "isComplete": { "type": "boolean" },
+        "adjustment": { "enum": ["SPLIT_DIVIDEND", "NONE", "UNKNOWN"] },
+        "sourceIds": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string" } }
+      }
+    },
+    "versionedDataset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "fields", "limitations"],
+      "properties": {
+        "schemaVersion": { "type": "string", "minLength": 1, "maxLength": 32 },
+        "fields": { "type": "object", "additionalProperties": { "$ref": "#/$defs/provenanceValue" } },
+        "limitations": { "type": "array", "items": { "type": "string", "minLength": 1, "maxLength": 500 } }
+      }
+    },
+    "newsItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["newsId", "title", "publishedAt", "receivedAt", "sourceIds", "reliability", "isDuplicate"],
+      "properties": {
+        "newsId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "title": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "summary": { "type": ["string", "null"], "maxLength": 5000 },
+        "publishedAt": { "$ref": "#/$defs/timestamp" },
+        "receivedAt": { "$ref": "#/$defs/timestamp" },
+        "sourceIds": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string" } },
+        "reliability": { "enum": ["PRIMARY", "HIGH", "MEDIUM", "LOW", "UNKNOWN"] },
+        "isDuplicate": { "type": "boolean" },
+        "duplicateOf": { "type": ["string", "null"] }
+      }
+    },
+    "corporateEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["eventId", "eventType", "eventTime", "sourceIds"],
+      "properties": {
+        "eventId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "eventType": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "eventTime": { "$ref": "#/$defs/timestamp" },
+        "description": { "type": ["string", "null"], "maxLength": 5000 },
+        "sourceIds": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string" } }
+      }
+    },
+    "portfolioContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["portfolioId", "baseCurrency", "position"],
+      "properties": {
+        "portfolioId": { "type": "string", "minLength": 1 },
+        "baseCurrency": { "type": "string", "pattern": "^[A-Z]{3}$" },
+        "position": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["quantity", "averageCost", "costCurrency", "asOf"],
+          "properties": {
+            "quantity": { "$ref": "#/$defs/decimal" },
+            "averageCost": { "$ref": "#/$defs/decimal" },
+            "costCurrency": { "type": "string", "pattern": "^[A-Z]{3}$" },
+            "asOf": { "$ref": "#/$defs/timestamp" }
+          }
+        }
+      }
+    },
+    "investmentThesis": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["thesisId", "versionId", "text", "expectedHoldingMonths", "maximumAcceptableLossPercent", "invalidConditions", "createdAt"],
+      "properties": {
+        "thesisId": { "type": "string", "minLength": 1 },
+        "versionId": { "type": "string", "minLength": 1 },
+        "text": { "type": "string", "minLength": 1, "maxLength": 10000 },
+        "expectedHoldingMonths": { "type": "integer", "minimum": 1, "maximum": 600 },
+        "maximumAcceptableLossPercent": { "type": "number", "minimum": 0, "maximum": 100 },
+        "invalidConditions": { "type": "array", "maxItems": 100, "items": { "type": "string", "minLength": 1, "maxLength": 1000 } },
+        "createdAt": { "$ref": "#/$defs/timestamp" }
+      }
+    },
+    "dataQuality": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["score", "level", "limitations"],
+      "properties": {
+        "score": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "level": { "enum": ["HIGH", "MEDIUM", "LOW", "INSUFFICIENT"] },
+        "limitations": { "type": "array", "items": { "type": "string", "minLength": 1, "maxLength": 500 } }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sourceId", "provider", "sourceType", "title", "asOf", "receivedAt", "quality", "licensePolicyId"],
+      "properties": {
+        "sourceId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "provider": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "sourceType": { "enum": ["QUOTE", "BAR", "FUNDAMENTAL", "FILING", "ANNOUNCEMENT", "NEWS", "CALENDAR", "FX", "OTHER"] },
+        "title": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "url": { "type": ["string", "null"], "format": "uri", "maxLength": 2048 },
+        "publishedAt": { "oneOf": [{ "$ref": "#/$defs/timestamp" }, { "type": "null" }] },
+        "asOf": { "$ref": "#/$defs/timestamp" },
+        "receivedAt": { "$ref": "#/$defs/timestamp" },
+        "quality": { "enum": ["HIGH", "MEDIUM", "LOW", "INSUFFICIENT"] },
+        "contentHash": { "type": ["string", "null"], "pattern": "^[a-f0-9]{64}$" },
+        "licensePolicyId": { "type": "string", "minLength": 1, "maxLength": 128 }
+      }
+    }
+  }
+}

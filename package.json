@@ -1,0 +1,32 @@
+{
+  "name": "equity-atlas",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Chinese-first multi-market equity research platform",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "dev": "concurrently -k -n research,api,web -c yellow,cyan,green \"npm:dev:research\" \"npm:dev:api\" \"npm:dev:web\"",
+    "dev:research": ".venv\\Scripts\\python.exe -m uvicorn app.main:app --app-dir apps/research-engine --host 127.0.0.1 --port 8001 --reload",
+    "dev:api": "npm run dev --workspace @equity-atlas/product-api",
+    "dev:web": "npm run dev --workspace @equity-atlas/web",
+    "test:research": ".venv\\Scripts\\python.exe -m pytest apps/research-engine/tests",
+    "test:all": "npm run test && npm run test:research",
+    "setup:python": "python -m venv .venv && .venv\\Scripts\\python.exe -m pip install -r apps/research-engine/requirements-dev.txt"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  },
+  "engines": {
+    "node": ">=22",
+    "npm": ">=10"
+  }
+}
+

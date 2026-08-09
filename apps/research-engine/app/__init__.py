@@ -1,0 +1,2 @@
+"""Equity Atlas research engine."""
+
