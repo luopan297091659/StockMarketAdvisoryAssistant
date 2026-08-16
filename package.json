@@ -21,6 +21,9 @@
     "test:research": ".venv\\Scripts\\python.exe -m pytest apps/research-engine/tests",
     "test:all": "npm run test && npm run test:research",
     "verify": "npm run typecheck && npm run test:all && npm run build",
+    "audit:node": "npm audit --omit=dev --audit-level=high --cache .npm-cache",
+    "audit:python": ".venv\\Scripts\\python.exe -m pip_audit -r apps/research-engine/requirements.txt",
+    "audit": "npm run audit:node && npm run audit:python",
     "setup:python": "python -m venv .venv && .venv\\Scripts\\python.exe -m pip install -r apps/research-engine/requirements-dev.txt"
   },
   "devDependencies": {

@@ -1,5 +1,20 @@
 typedef Json = Map<String, dynamic>;
 
+class ProductConfig {
+  const ProductConfig({required this.dataMode, required this.registrationMode});
+  const ProductConfig.safeDefault()
+      : dataMode = 'SYNTHETIC_DEMO',
+        registrationMode = 'disabled';
+  final String dataMode;
+  final String registrationMode;
+  bool get usesRealMarketData => dataMode == 'REAL_MARKET_DATA';
+  bool get registrationEnabled => registrationMode != 'disabled';
+  bool get inviteRequired => registrationMode == 'invite';
+  factory ProductConfig.fromJson(Json json) => ProductConfig(
+      dataMode: json['dataMode'] as String? ?? 'SYNTHETIC_DEMO',
+      registrationMode: json['registrationMode'] as String? ?? 'disabled');
+}
+
 class UserProfile {
   const UserProfile(
       {required this.id, required this.email, required this.displayName});
@@ -114,6 +129,16 @@ class ReportDetail {
   final String dataMode;
   final Json report;
   final Json snapshot;
+  bool get usesRealMarketData => dataMode == 'REAL_MARKET_DATA';
+  Json get quote => snapshot['quote'] as Json? ?? const {};
+  Json get lastQuote => quote['last'] as Json? ?? const {};
+  Json get dataQuality =>
+      snapshot['dataQuality'] as Json? ??
+      report['dataQuality'] as Json? ??
+      const {};
+  List<Json> get sources => (snapshot['sources'] as List<dynamic>? ?? const [])
+      .whereType<Json>()
+      .toList();
   factory ReportDetail.fromJson(Json json) => ReportDetail(
       id: json['id'] as String,
       dataMode: json['dataMode'] as String? ?? '',

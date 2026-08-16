@@ -14,7 +14,21 @@ const emptyState = (): StoreState => ({
 export interface DataStore {
   read(): Promise<StoreState>;
   transaction<T>(mutator: (draft: StoreState) => T | Promise<T>): Promise<T>;
+  appendAudit?(event: AuditEvent): Promise<void>;
   close?(): Promise<void>;
+}
+
+export interface AuditEvent {
+  id: string;
+  tenantId: string | null;
+  actorId: string | null;
+  action: string;
+  outcome: "SUCCESS" | "DENIED" | "FAILURE";
+  resourceType: string | null;
+  resourceId: string | null;
+  requestId: string;
+  ipHash: string | null;
+  createdAt: string;
 }
 
 export class JsonFileStore implements DataStore {

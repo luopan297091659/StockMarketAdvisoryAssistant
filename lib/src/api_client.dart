@@ -27,6 +27,7 @@ class ApiClient {
     final uri = Uri.parse('${baseUrl.replaceFirst(RegExp(r'/$'), '')}$path');
     final headers = <String, String>{
       'accept': 'application/json',
+      'x-client-platform': 'mobile',
       if (body != null) 'content-type': 'application/json',
       if (accessToken != null) 'authorization': 'Bearer $accessToken',
       ...?extraHeaders
@@ -43,7 +44,13 @@ class ApiClient {
       throw const ApiException(0, 'NETWORK_ERROR', '无法连接服务，请检查网络与 API 地址');
     }
     if (response.statusCode == 204 || response.body.isEmpty) return const {};
-    final decoded = jsonDecode(response.body);
+    dynamic decoded;
+    try {
+      decoded = jsonDecode(response.body);
+    } on FormatException {
+      throw ApiException(
+          response.statusCode, 'INVALID_API_RESPONSE', '服务返回了无法识别的响应，请稍后重试');
+    }
     final payload =
         decoded is Json ? decoded : <String, dynamic>{'data': decoded};
     if (response.statusCode < 200 || response.statusCode >= 300) {

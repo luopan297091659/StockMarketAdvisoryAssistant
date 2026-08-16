@@ -13,6 +13,7 @@ class _AuthScreenState extends State<AuthScreen> {
   final _email = TextEditingController();
   final _password = TextEditingController();
   final _name = TextEditingController();
+  final _inviteCode = TextEditingController();
   bool _register = false;
   bool _obscure = true;
   @override
@@ -20,6 +21,7 @@ class _AuthScreenState extends State<AuthScreen> {
     _email.dispose();
     _password.dispose();
     _name.dispose();
+    _inviteCode.dispose();
     super.dispose();
   }
 
@@ -29,7 +31,8 @@ class _AuthScreenState extends State<AuthScreen> {
         register: _register,
         email: _email.text,
         password: _password.text,
-        displayName: _name.text);
+        displayName: _name.text,
+        inviteCode: _inviteCode.text);
   }
 
   @override
@@ -102,6 +105,24 @@ class _AuthScreenState extends State<AuthScreen> {
                                                             ? '请输入显示名称'
                                                             : null),
                                                 const SizedBox(height: 14),
+                                                if (widget.session.config
+                                                    .inviteRequired) ...[
+                                                  TextFormField(
+                                                      controller: _inviteCode,
+                                                      textInputAction:
+                                                          TextInputAction.next,
+                                                      decoration:
+                                                          const InputDecoration(
+                                                              labelText: '邀请码',
+                                                              prefixIcon: Icon(Icons
+                                                                  .key_outlined)),
+                                                      validator: (v) =>
+                                                          (v?.trim().isEmpty ??
+                                                                  true)
+                                                              ? '请输入客户邀请码'
+                                                              : null),
+                                                  const SizedBox(height: 14),
+                                                ],
                                               ],
                                               TextFormField(
                                                   controller: _email,
@@ -140,8 +161,8 @@ class _AuthScreenState extends State<AuthScreen> {
                                                               : Icons
                                                                   .visibility_off_outlined))),
                                                   validator: (v) =>
-                                                      (v?.length ?? 0) < 8
-                                                          ? '密码至少 8 位'
+                                                      (v?.length ?? 0) < 10
+                                                          ? '密码至少 10 位'
                                                           : null),
                                               if (widget.session.error !=
                                                   null) ...[
@@ -172,18 +193,26 @@ class _AuthScreenState extends State<AuthScreen> {
                                                           : Text(_register
                                                               ? '注册并进入'
                                                               : '登录'))),
-                                              TextButton(
-                                                  onPressed: widget.session.busy
-                                                      ? null
-                                                      : () => setState(() =>
-                                                          _register =
-                                                              !_register),
-                                                  child: Text(_register
-                                                      ? '已有账户？直接登录'
-                                                      : '没有账户？立即注册')),
+                                              if (widget.session.config
+                                                  .registrationEnabled)
+                                                TextButton(
+                                                    onPressed: widget
+                                                            .session.busy
+                                                        ? null
+                                                        : () => setState(() =>
+                                                            _register =
+                                                                !_register),
+                                                    child: Text(_register
+                                                        ? '已有账户？直接登录'
+                                                        : '没有账户？立即注册')),
                                             ])))),
                             const SizedBox(height: 18),
-                            const Text('仅提供研究信息，不构成投资建议。当前版本使用合成数据。',
+                            Text(
+                                widget.session.config.usesRealMarketData
+                                    ? '已连接真实供应商行情；数据可能延迟且仅供研究参考，不构成投资建议。'
+                                    : widget.session.configAvailable
+                                        ? '当前为合成数据演示环境，不可用于真实投资决策。'
+                                        : '尚未连接服务配置，请检查网络与 API 地址。',
                                 textAlign: TextAlign.center,
                                 style: TextStyle(fontSize: 12)),
                           ]),

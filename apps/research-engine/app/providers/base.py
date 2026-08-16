@@ -26,6 +26,13 @@ class MarketDataset:
     received_at: datetime
     bars: tuple[PriceBar, ...]
     limitations: tuple[str, ...]
+    data_mode: str = "REAL_MARKET_DATA"
+    quality: str = "MEDIUM"
+    freshness: str = "DELAYED"
+    is_delayed: bool = True
+    license_policy_id: str = "provider-contract-required"
+    source_title: str = "Licensed market data provider"
+    calendar_version: str = "provider-calendar"
 
 
 class MarketDataProvider(ABC):
@@ -34,4 +41,3 @@ class MarketDataProvider(ABC):
     @abstractmethod
     def historical_daily_bars(self, instrument: Instrument, cutoff: datetime, limit: int) -> MarketDataset:
         raise NotImplementedError
-

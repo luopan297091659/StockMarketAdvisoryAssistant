@@ -18,7 +18,11 @@ services:
 
   research-engine:
     build:
-      context: ./apps/research-engine
+      context: .
+      dockerfile: apps/research-engine/Dockerfile
+    environment:
+      DEPLOYMENT_MODE: development
+      MARKET_DATA_PROVIDER: synthetic
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health/ready', timeout=2)"]
       interval: 10s
@@ -38,14 +42,17 @@ services:
       JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET to at least 32 random characters}
       DATABASE_URL: postgresql://equity_atlas:${POSTGRES_PASSWORD:-local-development-password}@postgres:5432/equity_atlas?schema=public
       RESEARCH_ENGINE_URL: http://research-engine:8001
-    command: ["sh", "-c", "npx prisma migrate deploy --schema apps/product-api/prisma/schema.prisma && node apps/product-api/dist/main.js"]
+      REFRESH_COOKIE_MODE: "true"
+      COOKIE_SECURE: "false"
+      MARKET_DATA_MODE: SYNTHETIC_DEMO
+      TRUST_PROXY: "true"
     depends_on:
       postgres:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
       research-engine:
         condition: service_healthy
-    ports:
-      - "8000:8000"
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8000/health/ready').then(r=>{if(!r.ok)process.exit(1)})"]
       interval: 10s
@@ -53,12 +60,24 @@ services:
       retries: 10
     restart: unless-stopped
 
+  migrate:
+    build:
+      context: .
+      dockerfile: apps/product-api/Dockerfile
+      target: migrator
+    environment:
+      DATABASE_URL: postgresql://equity_atlas:${POSTGRES_PASSWORD:-local-development-password}@postgres:5432/equity_atlas?schema=public
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
   web:
     build:
       context: .
       dockerfile: apps/web/Dockerfile
       args:
-        VITE_API_BASE_URL: http://127.0.0.1:8000/api/v1
+        VITE_API_BASE_URL: /api/v1
     depends_on:
       product-api:
         condition: service_healthy
@@ -68,4 +87,3 @@ services:
 
 volumes:
   postgres-data:
-

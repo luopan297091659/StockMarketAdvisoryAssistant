@@ -3,12 +3,13 @@ import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import PriceChart from "../components/PriceChart.vue";
 import { useLocaleStore, type Locale } from "../stores/locale";
-import { ApiError, useSessionStore } from "../stores/session";
+import { apiBase, ApiError, useSessionStore } from "../stores/session";
 import type { Instrument, ReportRecord, ResearchTask, Watchlist } from "../types";
 
 const session = useSessionStore(); const locale = useLocaleStore(); const router = useRouter();
 const query = ref(""); const results = ref<Instrument[]>([]); const lists = ref<Watchlist[]>([]); const tasks = ref<ResearchTask[]>([]); const reports = ref<Array<Omit<ReportRecord, "snapshot">>>([]);
 const currentReport = ref<ReportRecord | null>(null); const loading = ref(false); const message = ref(""); const error = ref("");
+const productDataMode = ref<"SYNTHETIC_DEMO" | "REAL_MARKET_DATA">("SYNTHETIC_DEMO");
 const defaultList = computed(() => lists.value[0]);
 
 async function load() {
@@ -17,6 +18,7 @@ async function load() {
       session.api<{ items: Watchlist[] }>("/watchlists"), session.api<{ items: ResearchTask[] }>("/research-tasks"), session.api<{ items: Array<Omit<ReportRecord, "snapshot">> }>("/reports"),
     ]);
     lists.value = watchlists.items; tasks.value = taskResult.items; reports.value = reportResult.items;
+    try { productDataMode.value = (await (await fetch(`${apiBase}/config`)).json()).dataMode; } catch { /* authenticated data already loaded */ }
   } catch (reason) { handleError(reason); }
 }
 function handleError(reason: unknown) { error.value = reason instanceof ApiError ? reason.message : "无法连接服务"; }
@@ -40,7 +42,7 @@ async function runResearch(instrument: Instrument) {
   } catch (reason) { handleError(reason); }
 }
 async function openReport(id: string) { try { currentReport.value = await session.api<ReportRecord>(`/reports/${id}`); } catch (reason) { handleError(reason); } }
-function signOut() { session.clear(); void router.push("/login"); }
+async function signOut() { await session.logout(); await router.push("/login"); }
 onMounted(load);
 </script>
 
@@ -48,12 +50,12 @@ onMounted(load);
   <div class="app-shell">
     <header class="topbar">
       <div class="brand-inline"><img class="brand-mark small" src="/brand/equity-atlas-icon.png" alt="" /><div><strong>{{ locale.text.title }}</strong><small>Equity Atlas</small></div></div>
-      <div class="top-actions"><span class="demo-pill">{{ locale.text.demo }}</span><select :value="locale.locale" aria-label="语言" @change="locale.setLocale(($event.target as HTMLSelectElement).value as Locale)"><option value="zh">中文</option><option value="ja">日本語</option><option value="en">English</option></select><button class="text-button" @click="signOut">{{ locale.text.logout }}</button></div>
+      <div class="top-actions"><span v-if="productDataMode === 'SYNTHETIC_DEMO'" class="demo-pill">{{ locale.text.demo }}</span><select :value="locale.locale" aria-label="语言" @change="locale.setLocale(($event.target as HTMLSelectElement).value as Locale)"><option value="zh">中文</option><option value="ja">日本語</option><option value="en">English</option></select><button class="text-button" @click="signOut">{{ locale.text.logout }}</button></div>
     </header>
     <main class="dashboard">
       <section class="hero-row">
         <div><p class="eyebrow">MULTI-MARKET RESEARCH</p><h1>你好，{{ session.user?.displayName }}</h1><p>搜索标的，加入观察列表，然后生成可追溯的基础研究报告。</p></div>
-        <div class="quality-guard"><strong>数据安全提示</strong><span>当前仅提供合成数据。接入真实供应商前，所有报告都保持低置信度和中性评级。</span></div>
+        <div class="quality-guard"><strong>数据与风险提示</strong><span>{{ productDataMode === 'REAL_MARKET_DATA' ? '报告使用供应商行情；数据可能延迟，且仅覆盖价格技术面。' : '当前仅提供合成数据。所有演示报告保持低置信度和中性评级。' }}</span></div>
       </section>
 
       <section class="panel search-panel">
@@ -78,7 +80,7 @@ onMounted(load);
 
       <section v-if="currentReport" class="panel report-panel">
         <div class="report-title"><div><p class="eyebrow">STRUCTURED REPORT · {{ currentReport.dataMode }}</p><h2>{{ currentReport.report.symbol }} 基础研究</h2><span>{{ new Date(currentReport.report.analysisTime).toLocaleString() }} · Snapshot {{ currentReport.snapshot.snapshotId.slice(0, 16) }}…</span></div><div class="rating"><small>评级</small><strong>{{ currentReport.report.rating }}</strong><span>置信度 {{ Math.round(currentReport.report.confidence * 100) }}%</span></div></div>
-        <div class="report-grid"><div class="chart-card"><h3>合成历史价格</h3><PriceChart :bars="currentReport.snapshot.historicalBars" /></div><div class="score-card"><h3>研究概况</h3><p>{{ currentReport.report.summary.text }}</p><dl><template v-for="(score, key) in currentReport.report.scores" :key="key"><dt>{{ key }}</dt><dd>{{ score ?? 'N/A' }}</dd></template></dl></div></div>
+        <div class="report-grid"><div class="chart-card"><h3>{{ currentReport.dataMode === 'REAL_MARKET_DATA' ? '历史价格（日线）' : '合成历史价格' }}</h3><PriceChart :bars="currentReport.snapshot.historicalBars" /></div><div class="score-card"><h3>研究概况</h3><p>{{ currentReport.report.summary.text }}</p><dl><template v-for="(score, key) in currentReport.report.scores" :key="key"><dt>{{ key }}</dt><dd>{{ score ?? 'N/A' }}</dd></template></dl></div></div>
         <div class="insight-grid"><article><h3>关键风险</h3><ul><li v-for="risk in currentReport.report.keyRisks" :key="risk.text">{{ risk.text }}</li></ul></article><article><h3>支撑 / 阻力</h3><p v-for="level in currentReport.report.supportLevels" :key="level.value">支撑：{{ level.value }} {{ level.currency }}</p><p v-for="level in currentReport.report.resistanceLevels" :key="level.value">阻力：{{ level.value }} {{ level.currency }}</p></article><article><h3>数据限制</h3><ul><li v-for="item in currentReport.report.dataQuality.limitations" :key="item">{{ item }}</li></ul></article></div>
         <footer class="disclaimer">{{ currentReport.report.disclaimer }}</footer>
       </section>

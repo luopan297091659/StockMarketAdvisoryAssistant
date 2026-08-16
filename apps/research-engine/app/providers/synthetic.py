@@ -65,5 +65,11 @@ class SyntheticMarketDataProvider(MarketDataProvider):
                 "合成交易日仅排除周末，未应用真实交易所节假日。",
                 "基本面、新闻、公告和企业事件在演示模式中不可用。",
             ),
+            data_mode="SYNTHETIC_DEMO",
+            quality="LOW",
+            freshness="UNKNOWN",
+            is_delayed=True,
+            license_policy_id="synthetic-demo-internal-v1",
+            source_title="Equity Atlas deterministic synthetic demo series",
+            calendar_version="synthetic-weekdays-v1",
         )
-

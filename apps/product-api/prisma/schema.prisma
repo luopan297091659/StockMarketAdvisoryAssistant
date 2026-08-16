@@ -7,9 +7,7 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// The runnable MVP persists its repository aggregate transactionally here.
-// The normalized production model is specified in docs/data/database-entity-model.md
-// and will replace this demo aggregate using expand/migrate/contract migrations.
+// Legacy aggregate retained only for one-time migration of existing demo installs.
 model AppState {
   id        Int      @id
   payload   Json
@@ -19,3 +17,115 @@ model AppState {
   @@map("app_state")
 }
 
+model User {
+  id           String   @id @db.Uuid
+  tenantId     String   @map("tenant_id") @db.Uuid
+  email        String   @unique
+  displayName  String   @map("display_name")
+  passwordHash String   @map("password_hash")
+  createdAt    DateTime @map("created_at") @db.Timestamptz(6)
+  sessions     Session[]
+  researchTasks ResearchTask[]
+
+  @@index([tenantId])
+  @@unique([id, tenantId])
+  @@map("users")
+}
+
+model Session {
+  id                  String    @id @db.Uuid
+  userId              String    @map("user_id") @db.Uuid
+  tenantId            String    @map("tenant_id") @db.Uuid
+  refreshTokenHash    String    @unique @map("refresh_token_hash")
+  previousTokenHashes Json      @map("previous_token_hashes")
+  expiresAt           DateTime  @map("expires_at") @db.Timestamptz(6)
+  revokedAt           DateTime? @map("revoked_at") @db.Timestamptz(6)
+  createdAt           DateTime  @map("created_at") @db.Timestamptz(6)
+  user                User      @relation(fields: [userId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@index([userId, tenantId])
+  @@map("sessions")
+}
+
+model Watchlist {
+  id          String   @id @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  name        String
+  description String?
+  createdAt   DateTime @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @map("updated_at") @db.Timestamptz(6)
+  items       WatchlistItem[]
+
+  @@index([tenantId])
+  @@unique([id, tenantId])
+  @@map("watchlists")
+}
+
+model WatchlistItem {
+  id           String   @id @db.Uuid
+  watchlistId  String   @map("watchlist_id") @db.Uuid
+  tenantId     String   @map("tenant_id") @db.Uuid
+  instrumentId String   @map("instrument_id")
+  instrument   Json
+  createdAt    DateTime @map("created_at") @db.Timestamptz(6)
+  watchlist    Watchlist @relation(fields: [watchlistId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@unique([watchlistId, instrumentId])
+  @@index([tenantId])
+  @@map("watchlist_items")
+}
+
+model ResearchTask {
+  id             String   @id @db.Uuid
+  tenantId       String   @map("tenant_id") @db.Uuid
+  requestedBy    String   @map("requested_by") @db.Uuid
+  idempotencyKey String   @map("idempotency_key")
+  requestHash    String   @map("request_hash")
+  instrument     Json
+  mode           String
+  status         String
+  reportId       String?  @map("report_id")
+  errorCode      String?  @map("error_code")
+  errorDetail    String?  @map("error_detail")
+  createdAt      DateTime @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @map("updated_at") @db.Timestamptz(6)
+  requester      User     @relation(fields: [requestedBy, tenantId], references: [id, tenantId], onDelete: Restrict)
+  persistedReport Report?
+
+  @@unique([tenantId, idempotencyKey])
+  @@unique([id, tenantId])
+  @@index([tenantId, createdAt])
+  @@map("research_tasks")
+}
+
+model Report {
+  id           String   @id
+  tenantId     String   @map("tenant_id") @db.Uuid
+  taskId       String   @unique @map("task_id") @db.Uuid
+  instrumentId String   @map("instrument_id")
+  dataMode     String   @map("data_mode")
+  snapshot     Json
+  report       Json
+  createdAt    DateTime @map("created_at") @db.Timestamptz(6)
+  task         ResearchTask @relation(fields: [taskId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@index([tenantId, createdAt])
+  @@unique([taskId, tenantId])
+  @@map("reports")
+}
+
+model AuditLog {
+  id           String   @id @db.Uuid
+  tenantId     String?  @map("tenant_id") @db.Uuid
+  actorId      String?  @map("actor_id") @db.Uuid
+  action       String
+  outcome      String
+  resourceType String?  @map("resource_type")
+  resourceId   String?  @map("resource_id")
+  requestId    String   @map("request_id")
+  ipHash       String?  @map("ip_hash")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([tenantId, createdAt])
+  @@map("audit_logs")
+}

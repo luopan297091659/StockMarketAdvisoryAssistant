@@ -16,6 +16,15 @@ interface AppOptions {
   researchRunner: ResearchRunner;
   jwtSecret: string;
   webOrigin: string;
+  refreshCookieMode?: boolean;
+  secureCookies?: boolean;
+  marketDataMode?: "SYNTHETIC_DEMO" | "REAL_MARKET_DATA";
+  trustProxy?: boolean;
+  registrationMode?: "open" | "invite" | "disabled";
+  registrationInviteCode?: string | undefined;
+  persistenceMode?: "json-demo" | "postgresql";
+  jwtIssuer?: string;
+  jwtAudience?: string;
   logger?: boolean;
 }
 
@@ -23,9 +32,11 @@ const registerSchema = z.object({
   email: z.email().max(254),
   password: z.string().min(10).max(200),
   displayName: z.string().trim().min(1).max(120),
+  inviteCode: z.string().min(8).max(200).optional(),
 }).strict();
 const loginSchema = z.object({ email: z.email().max(254), password: z.string().min(1).max(200) }).strict();
-const refreshSchema = z.object({ refreshToken: z.string().min(40).max(500) }).strict();
+const refreshSchema = z.object({ refreshToken: z.string().min(40).max(500).optional() }).strict();
+const logoutSchema = z.object({ refreshToken: z.string().min(40).max(500).optional() }).strict();
 const watchlistSchema = z.object({ name: z.string().trim().min(1).max(120), description: z.string().trim().max(500).nullable().optional() }).strict();
 const researchSchema = z.object({ instrumentId: z.string().min(1).max(96), mode: z.literal("BASIC").default("BASIC") }).strict();
 
@@ -43,12 +54,29 @@ function claims(request: FastifyRequest): AuthClaims {
   return request.user as AuthClaims;
 }
 
+function cookieValue(request: FastifyRequest, name: string): string | undefined {
+  const cookies = request.headers.cookie?.split(";") ?? [];
+  for (const cookie of cookies) {
+    const [key, ...parts] = cookie.trim().split("=");
+    if (key === name) return decodeURIComponent(parts.join("="));
+  }
+  return undefined;
+}
+
 export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
-  const app = Fastify({ logger: options.logger ?? false, trustProxy: false, bodyLimit: 128 * 1024 });
+  const app = Fastify({ logger: options.logger ?? false, trustProxy: options.trustProxy ?? false, bodyLimit: 128 * 1024 });
   await app.register(helmet, { contentSecurityPolicy: false });
-  await app.register(cors, { origin: options.webOrigin, credentials: false });
+  await app.register(cors, { origin: options.webOrigin, credentials: Boolean(options.refreshCookieMode) });
   await app.register(rateLimit, { max: 120, timeWindow: "1 minute" });
-  await app.register(jwt, { secret: options.jwtSecret });
+  const jwtIssuer = options.jwtIssuer ?? "equity-atlas-product-api";
+  const jwtAudience = options.jwtAudience ?? "equity-atlas-clients";
+  await app.register(jwt, { secret: options.jwtSecret, sign: { iss: jwtIssuer, aud: jwtAudience }, verify: { allowedIss: jwtIssuer, allowedAud: jwtAudience } });
+
+  const audit = async (request: FastifyRequest, action: string, outcome: "SUCCESS" | "DENIED" | "FAILURE", tenantId: string | null, actorId: string | null, resourceType: string | null = null, resourceId: string | null = null) => {
+    try {
+      await options.store.appendAudit?.({ id: randomUUID(), tenantId, actorId, action, outcome, resourceType, resourceId, requestId: request.id, ipHash: sha256(request.ip).slice(0, 24), createdAt: now() });
+    } catch (error) { request.log.error({ err: error, action }, "audit log write failed"); }
+  };
 
   const authenticate = async (request: FastifyRequest): Promise<void> => {
     try {
@@ -74,6 +102,18 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
     };
     await options.store.transaction((state) => { state.sessions.push(session); });
     return { accessToken: app.jwt.sign({ tenantId: user.tenantId, sessionId: session.id }, { sub: user.id, expiresIn: "15m" }), refreshToken, expiresIn: 900 };
+  };
+
+  const usesRefreshCookie = (request: FastifyRequest) =>
+    Boolean(options.refreshCookieMode) && request.headers["x-client-platform"] !== "mobile";
+
+  const authResponse = (request: FastifyRequest, reply: FastifyReply, user: UserRecord, tokens: { accessToken: string; refreshToken: string; expiresIn: number }) => {
+    if (usesRefreshCookie(request)) {
+      const secure = options.secureCookies ? "; Secure" : "";
+      reply.header("set-cookie", `equity_atlas_refresh=${encodeURIComponent(tokens.refreshToken)}; Path=/api/v1/auth; HttpOnly; SameSite=Lax; Max-Age=2592000${secure}`);
+      return { user: publicUser(user), accessToken: tokens.accessToken, expiresIn: tokens.expiresIn };
+    }
+    return { user: publicUser(user), ...tokens };
   };
 
   const processTask = async (taskId: string): Promise<void> => {
@@ -129,10 +169,14 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
   });
 
   app.get("/health/live", async () => ({ status: "ok" }));
-  app.get("/health/ready", async () => { await options.store.read(); return { status: "ready", persistence: "local-demo" }; });
+  app.get("/health/ready", async () => { await options.store.read(); return { status: "ready", persistence: options.persistenceMode ?? "json-demo", dataMode: options.marketDataMode ?? "SYNTHETIC_DEMO" }; });
+  app.get("/api/v1/config", async () => ({ dataMode: options.marketDataMode ?? "SYNTHETIC_DEMO", registrationMode: options.registrationMode ?? "open" }));
 
   app.post("/api/v1/auth/register", { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } }, async (request, reply) => {
     const body = registerSchema.parse(request.body);
+    const registrationMode = options.registrationMode ?? "open";
+    if (registrationMode === "disabled") throw new HttpProblem(403, "REGISTRATION_DISABLED", "当前未开放新账户注册");
+    if (registrationMode === "invite" && (!options.registrationInviteCode || body.inviteCode !== options.registrationInviteCode)) throw new HttpProblem(403, "INVALID_INVITE_CODE", "邀请码无效");
     const email = normalizedEmail(body.email);
     const created = now();
     const user: UserRecord = {
@@ -146,24 +190,29 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
       state.watchlists.push(watchlist);
     });
     const tokens = await issueSession(user);
-    return reply.code(201).send({ user: publicUser(user), ...tokens });
+    await audit(request, "AUTH_REGISTER", "SUCCESS", user.tenantId, user.id, "USER", user.id);
+    return reply.code(201).send(authResponse(request, reply, user, tokens));
   });
 
   app.post("/api/v1/auth/login", { config: { rateLimit: { max: 20, timeWindow: "1 minute" } } }, async (request, reply) => {
     const body = loginSchema.parse(request.body);
     const state = await options.store.read();
     const user = state.users.find((item) => item.email === normalizedEmail(body.email));
-    if (!user || !(await verifyPassword(user.passwordHash, body.password))) throw new HttpProblem(401, "INVALID_CREDENTIALS", "邮箱或密码错误");
-    return reply.send({ user: publicUser(user), ...(await issueSession(user)) });
+    if (!user || !(await verifyPassword(user.passwordHash, body.password))) { await audit(request, "AUTH_LOGIN", "DENIED", null, null); throw new HttpProblem(401, "INVALID_CREDENTIALS", "邮箱或密码错误"); }
+    await audit(request, "AUTH_LOGIN", "SUCCESS", user.tenantId, user.id, "SESSION");
+    return reply.send(authResponse(request, reply, user, await issueSession(user)));
   });
 
   app.post("/api/v1/auth/refresh", async (request, reply) => {
     const body = refreshSchema.parse(request.body);
-    const tokenHash = sha256(body.refreshToken);
+    const refreshToken = body.refreshToken ?? cookieValue(request, "equity_atlas_refresh");
+    if (!refreshToken) throw new HttpProblem(401, "INVALID_REFRESH_TOKEN", "刷新令牌无效");
+    const tokenHash = sha256(refreshToken);
     const state = await options.store.read();
     const reused = state.sessions.find((item) => item.previousTokenHashes.includes(tokenHash));
     if (reused) {
       await options.store.transaction((draft) => { const session = draft.sessions.find((item) => item.id === reused.id); if (session) session.revokedAt = now(); });
+      await audit(request, "AUTH_REFRESH_REUSE", "DENIED", reused.tenantId, reused.userId, "SESSION", reused.id);
       throw new HttpProblem(401, "REFRESH_TOKEN_REUSED", "检测到已轮换令牌被重复使用，会话已撤销");
     }
     const session = state.sessions.find((item) => item.refreshTokenHash === tokenHash && !item.revokedAt);
@@ -178,7 +227,29 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
       current.previousTokenHashes = current.previousTokenHashes.slice(-5);
       current.refreshTokenHash = sha256(nextRefreshToken);
     });
-    return reply.send({ accessToken: app.jwt.sign({ tenantId: user.tenantId, sessionId: session.id }, { sub: user.id, expiresIn: "15m" }), refreshToken: nextRefreshToken, expiresIn: 900 });
+    const accessToken = app.jwt.sign({ tenantId: user.tenantId, sessionId: session.id }, { sub: user.id, expiresIn: "15m" });
+    if (usesRefreshCookie(request)) {
+      const secure = options.secureCookies ? "; Secure" : "";
+      reply.header("set-cookie", `equity_atlas_refresh=${encodeURIComponent(nextRefreshToken)}; Path=/api/v1/auth; HttpOnly; SameSite=Lax; Max-Age=2592000${secure}`);
+      return reply.send({ accessToken, expiresIn: 900 });
+    }
+    return reply.send({ accessToken, refreshToken: nextRefreshToken, expiresIn: 900 });
+  });
+
+  app.post("/api/v1/auth/logout", async (request, reply) => {
+    const body = logoutSchema.parse(request.body ?? {});
+    const refreshToken = body.refreshToken ?? cookieValue(request, "equity_atlas_refresh");
+    if (refreshToken) {
+      const tokenHash = sha256(refreshToken);
+      await options.store.transaction((state) => {
+        const session = state.sessions.find((item) => item.refreshTokenHash === tokenHash && !item.revokedAt);
+        if (session) session.revokedAt = now();
+      });
+    }
+    await audit(request, "AUTH_LOGOUT", "SUCCESS", null, null, "SESSION");
+    const secure = options.secureCookies ? "; Secure" : "";
+    reply.header("set-cookie", `equity_atlas_refresh=; Path=/api/v1/auth; HttpOnly; SameSite=Lax; Max-Age=0${secure}`);
+    return reply.code(204).send();
   });
 
   app.get("/api/v1/me", { preHandler: authenticate }, async (request) => {
@@ -266,6 +337,7 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
       draft.researchTasks.push(task);
     });
     setImmediate(() => { void processTask(task.id); });
+    await audit(request, "RESEARCH_TASK_CREATE", "SUCCESS", task.tenantId, task.requestedBy, "RESEARCH_TASK", task.id);
     return reply.code(202).send(task);
   });
 
@@ -293,6 +365,20 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
     const report = state.reports.find((item) => item.id === params.id && item.tenantId === claims(request).tenantId);
     if (!report) throw new HttpProblem(404, "REPORT_NOT_FOUND", "研究报告不存在");
     return report;
+  });
+
+  app.addHook("onReady", async () => {
+    const recoverable: string[] = [];
+    await options.store.transaction((state) => {
+      for (const task of state.researchTasks) {
+        if (task.status === "QUEUED" || task.status === "ANALYZING") {
+          task.status = "QUEUED";
+          task.updatedAt = now();
+          recoverable.push(task.id);
+        }
+      }
+    });
+    for (const taskId of recoverable) setImmediate(() => { void processTask(taskId); });
   });
 
   return app;

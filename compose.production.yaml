@@ -1,0 +1,18 @@
+services:
+  research-engine:
+    environment:
+      DEPLOYMENT_MODE: production
+      MARKET_DATA_PROVIDER: twelve_data
+      MARKET_DATA_LICENSE_APPROVED: ${MARKET_DATA_LICENSE_APPROVED:?set true only after commercial display rights are approved}
+      TWELVE_DATA_API_KEY: ${TWELVE_DATA_API_KEY:?set licensed provider API key}
+
+  product-api:
+    environment:
+      NODE_ENV: production
+      PUBLIC_CUSTOMER_DEPLOYMENT: "true"
+      WEB_ORIGIN: ${PUBLIC_WEB_ORIGIN:?set public HTTPS origin}
+      REFRESH_COOKIE_MODE: "true"
+      COOKIE_SECURE: "true"
+      MARKET_DATA_MODE: REAL_MARKET_DATA
+      REGISTRATION_MODE: invite
+      REGISTRATION_INVITE_CODE: ${REGISTRATION_INVITE_CODE:?set a random customer invitation code of at least 16 characters}

@@ -24,6 +24,7 @@ __pycache__/
 .env
 .env.*
 !.env.example
+!.env.production.example
 .data/
 *.log
 .DS_Store

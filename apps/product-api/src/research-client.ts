@@ -1,5 +1,5 @@
 export interface ResearchResult {
-  dataMode: "SYNTHETIC_DEMO";
+  dataMode: "SYNTHETIC_DEMO" | "REAL_MARKET_DATA";
   snapshot: Record<string, unknown>;
   report: Record<string, unknown>;
 }
@@ -21,4 +21,3 @@ export function createResearchClient(baseUrl: string, timeoutMs: number): Resear
     return (await response.json()) as ResearchResult;
   };
 }
-

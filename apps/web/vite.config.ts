@@ -5,7 +5,7 @@ export default defineConfig({
   plugins: [vue()],
   server: { strictPort: true },
   build: {
-    sourcemap: true,
+    sourcemap: process.env.VITE_SOURCEMAP === "true",
     rollupOptions: {
       output: {
         manualChunks(id) {

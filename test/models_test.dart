@@ -23,4 +23,33 @@ void main() {
     expect(report.symbol, 'NVDA');
     expect(report.rating, 'NEUTRAL');
   });
+  test('product config exposes customer data and registration modes', () {
+    final config = ProductConfig.fromJson(
+        {'dataMode': 'REAL_MARKET_DATA', 'registrationMode': 'invite'});
+    expect(config.usesRealMarketData, isTrue);
+    expect(config.inviteRequired, isTrue);
+    expect(config.registrationEnabled, isTrue);
+  });
+
+  test('report detail exposes quote provenance and quality', () {
+    final detail = ReportDetail.fromJson({
+      'id': 'report-real',
+      'dataMode': 'REAL_MARKET_DATA',
+      'report': <String, dynamic>{},
+      'snapshot': {
+        'quote': {
+          'currency': 'USD',
+          'last': {'value': 212.5, 'provider': 'Twelve Data'}
+        },
+        'dataQuality': {'level': 'MEDIUM', 'score': 60},
+        'sources': [
+          {'provider': 'Twelve Data', 'title': 'Daily bars'}
+        ]
+      }
+    });
+    expect(detail.usesRealMarketData, isTrue);
+    expect(detail.lastQuote['value'], 212.5);
+    expect(detail.dataQuality['score'], 60);
+    expect(detail.sources.single['provider'], 'Twelve Data');
+  });
 }

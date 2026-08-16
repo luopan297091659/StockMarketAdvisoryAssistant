@@ -57,7 +57,7 @@ export interface ReportRecord {
   tenantId: string;
   taskId: string;
   instrumentId: string;
-  dataMode: "SYNTHETIC_DEMO";
+  dataMode: "SYNTHETIC_DEMO" | "REAL_MARKET_DATA";
   snapshot: Record<string, unknown>;
   report: Record<string, unknown>;
   createdAt: string;
@@ -77,4 +77,3 @@ export interface AuthClaims {
   tenantId: string;
   sessionId: string;
 }
-

@@ -35,7 +35,6 @@ class BasicResearchRequest(BaseModel):
 class BasicResearchResponse(BaseModel):
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
-    data_mode: Literal["SYNTHETIC_DEMO"] = Field(alias="dataMode")
+    data_mode: Literal["SYNTHETIC_DEMO", "REAL_MARKET_DATA"] = Field(alias="dataMode")
     snapshot: dict
     report: dict
-

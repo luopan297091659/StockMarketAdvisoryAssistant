@@ -156,169 +156,176 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(
-            title: const Row(children: [
-              CircleAvatar(
-                  radius: 18,
-                  backgroundColor: Color(0xFF0B6655),
-                  child: Text('EA',
-                      style: TextStyle(color: Colors.white, fontSize: 12))),
-              SizedBox(width: 10),
-              Text('股宝AI', style: TextStyle(fontWeight: FontWeight.bold))
-            ]),
-            actions: [
-              IconButton(onPressed: _load, icon: const Icon(Icons.refresh)),
-              IconButton(
-                  onPressed: widget.session.signOut,
-                  icon: const Icon(Icons.logout))
-            ]),
-        body: RefreshIndicator(
-            onRefresh: _load,
-            child: _loading
-                ? const Center(child: CircularProgressIndicator())
-                : ListView(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
-                    children: [
-                        Text('你好，${widget.session.user?.displayName ?? ''}',
-                            style: Theme.of(context)
-                                .textTheme
-                                .headlineSmall
-                                ?.copyWith(fontWeight: FontWeight.w800)),
-                        const SizedBox(height: 6),
-                        const Text('搜索标的，加入观察列表，然后生成可追溯的基础研究报告。'),
-                        const SizedBox(height: 16),
-                        Container(
-                            padding: const EdgeInsets.all(14),
-                            decoration: BoxDecoration(
-                                color: const Color(0xFFFFF4D8),
-                                borderRadius: BorderRadius.circular(14)),
-                            child: const Row(children: [
-                              Icon(Icons.shield_outlined),
-                              SizedBox(width: 10),
-                              Expanded(child: Text('当前仅提供合成数据；报告保持低置信度和中性评级。'))
-                            ])),
-                        const SizedBox(height: 16),
-                        Card(
+  Widget build(BuildContext context) {
+    final realData = widget.session.config.usesRealMarketData;
+    return Scaffold(
+      appBar: AppBar(
+          title: const Row(children: [
+            CircleAvatar(
+                radius: 18,
+                backgroundColor: Color(0xFF0B6655),
+                child: Text('EA',
+                    style: TextStyle(color: Colors.white, fontSize: 12))),
+            SizedBox(width: 10),
+            Text('股宝AI', style: TextStyle(fontWeight: FontWeight.bold))
+          ]),
+          actions: [
+            IconButton(onPressed: _load, icon: const Icon(Icons.refresh)),
+            IconButton(
+                onPressed: widget.session.signOut,
+                icon: const Icon(Icons.logout))
+          ]),
+      body: RefreshIndicator(
+          onRefresh: _load,
+          child: _loading
+              ? const Center(child: CircularProgressIndicator())
+              : ListView(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+                  children: [
+                      Text('你好，${widget.session.user?.displayName ?? ''}',
+                          style: Theme.of(context)
+                              .textTheme
+                              .headlineSmall
+                              ?.copyWith(fontWeight: FontWeight.w800)),
+                      const SizedBox(height: 6),
+                      const Text('搜索标的，加入观察列表，然后生成可追溯的基础研究报告。'),
+                      const SizedBox(height: 16),
+                      Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                              color: realData
+                                  ? const Color(0xFFE2F3ED)
+                                  : const Color(0xFFFFF4D8),
+                              borderRadius: BorderRadius.circular(14)),
+                          child: Row(children: [
+                            Icon(realData
+                                ? Icons.verified_outlined
+                                : Icons.science_outlined),
+                            const SizedBox(width: 10),
+                            Expanded(
+                                child: Text(realData
+                                    ? '已连接真实供应商日线行情；数据可能延迟，当前研究仅覆盖价格技术面。'
+                                    : '当前仅提供合成数据；报告不可用于真实投资决策。'))
+                          ])),
+                      const SizedBox(height: 16),
+                      Card(
+                          child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(children: [
+                                Row(children: [
+                                  Expanded(
+                                      child: TextField(
+                                          controller: _query,
+                                          onSubmitted: (_) => _search(),
+                                          decoration: const InputDecoration(
+                                              labelText: '搜索股票代码',
+                                              hintText: '7203.T、NVDA、600519'))),
+                                  const SizedBox(width: 10),
+                                  FilledButton(
+                                      onPressed: _searching ? null : _search,
+                                      child: _searching
+                                          ? const SizedBox.square(
+                                              dimension: 18,
+                                              child: CircularProgressIndicator(
+                                                  strokeWidth: 2))
+                                          : const Text('搜索'))
+                                ]),
+                                if (_results.isNotEmpty) ...[
+                                  const Divider(height: 28),
+                                  ..._results.map((e) => ListTile(
+                                      contentPadding: EdgeInsets.zero,
+                                      title: Text('${e.symbol}  ${e.name}',
+                                          style: const TextStyle(
+                                              fontWeight: FontWeight.w700)),
+                                      subtitle:
+                                          Text('${e.market} · ${e.currency}'),
+                                      trailing: OutlinedButton(
+                                          onPressed: () => _add(e),
+                                          child: const Text('加入观察'))))
+                                ],
+                              ]))),
+                      if (_message != null)
+                        Padding(
+                            padding: const EdgeInsets.only(top: 12),
+                            child: Text(_message!,
+                                style: const TextStyle(
+                                    color: Color(0xFF0B6655),
+                                    fontWeight: FontWeight.w600))),
+                      if (_error != null)
+                        Padding(
+                            padding: const EdgeInsets.only(top: 12),
+                            child: Text(_error!,
+                                style: TextStyle(
+                                    color:
+                                        Theme.of(context).colorScheme.error))),
+                      const SizedBox(height: 20),
+                      _Header(
+                          title: _watchlist?.name ?? '观察列表',
+                          count: '${_watchlist?.items.length ?? 0} 个标的'),
+                      const SizedBox(height: 10),
+                      if (_watchlist?.items.isEmpty ?? true)
+                        const Card(
                             child: Padding(
-                                padding: const EdgeInsets.all(16),
-                                child: Column(children: [
-                                  Row(children: [
-                                    Expanded(
-                                        child: TextField(
-                                            controller: _query,
-                                            onSubmitted: (_) => _search(),
-                                            decoration: const InputDecoration(
-                                                labelText: '搜索股票代码',
-                                                hintText:
-                                                    '7203.T、NVDA、600519'))),
-                                    const SizedBox(width: 10),
-                                    FilledButton(
-                                        onPressed: _searching ? null : _search,
-                                        child: _searching
-                                            ? const SizedBox.square(
-                                                dimension: 18,
-                                                child:
-                                                    CircularProgressIndicator(
-                                                        strokeWidth: 2))
-                                            : const Text('搜索'))
-                                  ]),
-                                  if (_results.isNotEmpty) ...[
-                                    const Divider(height: 28),
-                                    ..._results.map((e) => ListTile(
-                                        contentPadding: EdgeInsets.zero,
-                                        title: Text('${e.symbol}  ${e.name}',
-                                            style: const TextStyle(
-                                                fontWeight: FontWeight.w700)),
-                                        subtitle:
-                                            Text('${e.market} · ${e.currency}'),
-                                        trailing: OutlinedButton(
-                                            onPressed: () => _add(e),
-                                            child: const Text('加入观察'))))
-                                  ],
-                                ]))),
-                        if (_message != null)
-                          Padding(
-                              padding: const EdgeInsets.only(top: 12),
-                              child: Text(_message!,
-                                  style: const TextStyle(
-                                      color: Color(0xFF0B6655),
-                                      fontWeight: FontWeight.w600))),
-                        if (_error != null)
-                          Padding(
-                              padding: const EdgeInsets.only(top: 12),
-                              child: Text(_error!,
-                                  style: TextStyle(
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .error))),
-                        const SizedBox(height: 20),
-                        _Header(
-                            title: _watchlist?.name ?? '观察列表',
-                            count: '${_watchlist?.items.length ?? 0} 个标的'),
-                        const SizedBox(height: 10),
-                        if (_watchlist?.items.isEmpty ?? true)
-                          const Card(
-                              child: Padding(
-                                  padding: EdgeInsets.all(24),
-                                  child: Text('先搜索并添加一个标的。')))
-                        else
-                          ..._watchlist!.items.map((item) => Padding(
-                              padding: const EdgeInsets.only(bottom: 10),
-                              child: Card(
-                                  child: Padding(
-                                      padding: const EdgeInsets.all(14),
-                                      child: Row(children: [
-                                        CircleAvatar(
-                                            child: Text(item.instrument.market
-                                                .substring(
-                                                    0,
-                                                    min(
-                                                        2,
-                                                        item.instrument.market
-                                                            .length)))),
-                                        const SizedBox(width: 12),
-                                        Expanded(
-                                            child: Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                children: [
-                                              Text(item.instrument.symbol,
-                                                  style: const TextStyle(
-                                                      fontWeight:
-                                                          FontWeight.w800)),
-                                              Text(item.instrument.name),
-                                              Text(
-                                                  '${item.instrument.currency} · ${item.instrument.timezone}',
-                                                  style: const TextStyle(
-                                                      fontSize: 11))
-                                            ])),
-                                        FilledButton.tonal(
-                                            onPressed: () =>
-                                                _research(item.instrument),
-                                            child: const Text('生成研究'))
-                                      ]))))),
-                        const SizedBox(height: 20),
-                        _Header(title: '研究报告', count: '${_reports.length} 份'),
-                        const SizedBox(height: 10),
-                        if (_reports.isEmpty)
-                          const Card(
-                              child: Padding(
-                                  padding: EdgeInsets.all(24),
-                                  child: Text('暂无报告')))
-                        else
-                          ..._reports.map((r) => Card(
-                              child: ListTile(
-                                  onTap: () => _openReport(r.id),
-                                  leading: const Icon(Icons.article_outlined),
-                                  title: Text(r.symbol),
-                                  subtitle: Text(r.createdAt
-                                      .toLocal()
-                                      .toString()
-                                      .substring(0, 16)),
-                                  trailing: Chip(label: Text(r.rating))))),
-                      ])),
-      );
+                                padding: EdgeInsets.all(24),
+                                child: Text('先搜索并添加一个标的。')))
+                      else
+                        ..._watchlist!.items.map((item) => Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: Card(
+                                child: Padding(
+                                    padding: const EdgeInsets.all(14),
+                                    child: Row(children: [
+                                      CircleAvatar(
+                                          child: Text(item.instrument.market
+                                              .substring(
+                                                  0,
+                                                  min(
+                                                      2,
+                                                      item.instrument.market
+                                                          .length)))),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                          child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                            Text(item.instrument.symbol,
+                                                style: const TextStyle(
+                                                    fontWeight:
+                                                        FontWeight.w800)),
+                                            Text(item.instrument.name),
+                                            Text(
+                                                '${item.instrument.currency} · ${item.instrument.timezone}',
+                                                style: const TextStyle(
+                                                    fontSize: 11))
+                                          ])),
+                                      FilledButton.tonal(
+                                          onPressed: () =>
+                                              _research(item.instrument),
+                                          child: const Text('生成研究'))
+                                    ]))))),
+                      const SizedBox(height: 20),
+                      _Header(title: '研究报告', count: '${_reports.length} 份'),
+                      const SizedBox(height: 10),
+                      if (_reports.isEmpty)
+                        const Card(
+                            child: Padding(
+                                padding: EdgeInsets.all(24),
+                                child: Text('暂无报告')))
+                      else
+                        ..._reports.map((r) => Card(
+                            child: ListTile(
+                                onTap: () => _openReport(r.id),
+                                leading: const Icon(Icons.article_outlined),
+                                title: Text(r.symbol),
+                                subtitle: Text(r.createdAt
+                                    .toLocal()
+                                    .toString()
+                                    .substring(0, 16)),
+                                trailing: Chip(label: Text(r.rating))))),
+                    ])),
+    );
+  }
 }
 
 class _Header extends StatelessWidget {

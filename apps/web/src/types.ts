@@ -16,7 +16,7 @@ export interface ResearchTask { id: string; status: "QUEUED" | "ANALYZING" | "SU
 
 export interface ReportRecord {
   id: string;
-  dataMode: "SYNTHETIC_DEMO";
+  dataMode: "SYNTHETIC_DEMO" | "REAL_MARKET_DATA";
   snapshot: {
     snapshotId: string;
     historicalBars: Array<{ endTime: string; close: string }>;
@@ -42,4 +42,3 @@ export interface ReportRecord {
   };
   createdAt: string;
 }
-

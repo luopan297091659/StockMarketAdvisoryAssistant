@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from fastapi.testclient import TestClient
+import pytest
 
 from app.main import app
+from app.main import build_provider
 
 
 client = TestClient(app)
@@ -43,3 +45,18 @@ def test_unknown_fields_are_rejected() -> None:
     response = client.post("/v1/research/basic", json={"taskId": "task-1", "instrument": instrument(), "tradeNow": True})
     assert response.status_code == 422
 
+
+def test_production_rejects_synthetic_provider(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("DEPLOYMENT_MODE", "production")
+    monkeypatch.setenv("MARKET_DATA_PROVIDER", "synthetic")
+    with pytest.raises(RuntimeError, match="forbidden"):
+        build_provider()
+
+
+def test_production_requires_license_approval(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("DEPLOYMENT_MODE", "production")
+    monkeypatch.setenv("MARKET_DATA_PROVIDER", "twelve_data")
+    monkeypatch.setenv("TWELVE_DATA_API_KEY", "test-key")
+    monkeypatch.delenv("MARKET_DATA_LICENSE_APPROVED", raising=False)
+    with pytest.raises(RuntimeError, match="LICENSE_APPROVED"):
+        build_provider()

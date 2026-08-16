@@ -10,10 +10,24 @@ class ReportScreen extends StatelessWidget {
     final quality = body['dataQuality'] as Json? ?? const {};
     final symbol = body['symbol'] as String? ?? '--';
     final confidence = ((body['confidence'] as num?) ?? 0).toDouble();
+    final lastQuote = report.lastQuote;
+    final source = report.sources.isEmpty
+        ? const <String, dynamic>{}
+        : report.sources.first;
+    final quoteValue = lastQuote['value'];
+    final currency = lastQuote['currency'] ?? report.quote['currency'] ?? '';
+    final provider = lastQuote['provider'] ?? source['provider'] ?? '未知来源';
+    final asOf = DateTime.tryParse(
+        (lastQuote['asOf'] ?? source['asOf'] ?? '').toString());
+    final delayed = lastQuote['isDelayed'] == true;
+    final qualityLevel =
+        (report.dataQuality['level'] ?? lastQuote['quality'] ?? 'UNKNOWN')
+            .toString();
+    final qualityScore = report.dataQuality['score'];
     return Scaffold(
         appBar: AppBar(title: Text('$symbol 基础研究')),
         body: ListView(padding: const EdgeInsets.all(16), children: [
-          Text('STRUCTURED REPORT · ${report.dataMode}',
+          Text(report.usesRealMarketData ? '真实供应商数据' : '合成演示数据',
               style: const TextStyle(
                   color: Color(0xFF0B6655), fontWeight: FontWeight.w800)),
           const SizedBox(height: 10),
@@ -31,6 +45,26 @@ class ReportScreen extends StatelessWidget {
                         label: Text(
                             '${body['rating'] ?? 'NEUTRAL'} · ${(confidence * 100).round()}%'))
                   ]))),
+          const SizedBox(height: 14),
+          _Section(
+              title: '行情来源与时效',
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                        quoteValue == null
+                            ? '最新价格：暂无'
+                            : '最新价格：$quoteValue $currency',
+                        style: const TextStyle(
+                            fontSize: 18, fontWeight: FontWeight.w700)),
+                    const SizedBox(height: 8),
+                    Text('来源：$provider'),
+                    Text(
+                        '截至：${asOf == null ? '未知' : asOf.toLocal().toString().substring(0, 16)}'),
+                    Text('时效：${delayed ? '延迟数据' : '供应商标记为非延迟'}'),
+                    Text(
+                        '质量：$qualityLevel${qualityScore == null ? '' : ' · $qualityScore/100'}'),
+                  ])),
           const SizedBox(height: 14),
           _Section(
               title: '研究概况',
@@ -59,6 +93,14 @@ class ReportScreen extends StatelessWidget {
               title: '数据限制',
               child: _List(
                   items: quality['limitations'] as List<dynamic>? ?? const [])),
+          const SizedBox(height: 14),
+          _Section(
+              title: '数据源',
+              child: _List(
+                  items: report.sources
+                      .map((item) =>
+                          '${item['provider'] ?? '未知'} · ${item['title'] ?? '行情数据'} · ${item['asOf'] ?? '时间未知'}')
+                      .toList())),
           const SizedBox(height: 18),
           Container(
               padding: const EdgeInsets.all(16),

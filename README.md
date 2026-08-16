@@ -18,7 +18,7 @@
 - 独立 FastAPI 研究引擎计算 MA、RSI、MACD 和波动率；
 - 为任务生成单一不可变上下文快照和结构化报告；
 - 浏览报告历史、数据质量、限制和合成价格图表；
-- 本地 JSON 演示持久化，或通过 Docker 使用 Prisma/PostgreSQL 持久化；
+- 本地 JSON 演示持久化，或通过 Docker 使用规范化 Prisma/PostgreSQL 表持久化；
 - 中文优先界面及基础日文、英文切换。
 
 > **重要限制：** 默认数据源是确定性合成数据，只用于验证软件功能。报告固定为低数据质量、低置信度和中性评级，不可用于真实投资决策。当前未接入商业行情、新闻、财务数据、真实 LLM、BullMQ 调度或交易功能。
@@ -36,7 +36,7 @@ npm.cmd run dev
 
 打开 <http://127.0.0.1:5173>。产品 API 位于 `http://127.0.0.1:8000`，研究引擎 OpenAPI 位于 `http://127.0.0.1:8001/docs`。
 
-演示数据保存在 `.data/demo-store.json`。删除该文件会清空本地演示账户、观察列表和报告。演示 Web 为便于本地使用而把 token 存在浏览器 localStorage；生产部署必须切换为安全 Cookie/BFF 策略。
+演示数据保存在 `.data/demo-store.json`。删除该文件会清空本地演示账户、观察列表和报告。Web 的刷新令牌使用 HttpOnly Cookie，短期 access token 仅保存在当前浏览器会话中。
 
 ## Flutter 移动端：GubaoAI（股宝AI）
 
@@ -54,7 +54,17 @@ flutter run
 flutter run --dart-define=API_BASE_URL=http://127.0.0.1:8000/api/v1
 ```
 
-Android 的明文 HTTP 仅在 debug manifest 中开启，发布构建应使用 HTTPS。iOS 构建需在 macOS 与 Xcode 环境完成。
+App 会从 `/config` 读取真实/演示数据模式及邀请注册策略。原生刷新令牌由系统安全存储保管；退出登录时服务端会撤销该令牌。Android 的明文 HTTP 仅在 debug manifest 中开启，正式版代码也会拒绝非 HTTPS API。
+
+客户 Android 包必须使用正式域名和发布证书。复制 `android/key.properties.example` 为不入库的 `android/key.properties`，填入上传密钥信息后执行：
+
+```powershell
+flutter analyze
+flutter test
+flutter build appbundle --release --dart-define=API_BASE_URL=https://api.example.com/api/v1
+```
+
+不得向客户交付未签名包、调试证书包或使用 `ALLOW_INSECURE_API=true` 的包。iOS 构建需在 macOS/Xcode 中选择正式 Team、Bundle ID 与 Distribution 签名，并传入同一个 HTTPS `API_BASE_URL`。
 
 ## Docker Compose
 
@@ -68,13 +78,37 @@ docker compose up --build
 
 打开 <http://127.0.0.1:8080>。Compose 使用 PostgreSQL 16、独立研究引擎、产品 API 和 Nginx Web。停止服务使用 `docker compose down`；只有明确需要清空数据库时才使用 `docker compose down --volumes`。
 
+## 客户试用部署
+
+仓库提供 Twelve Data 日线适配器作为真实数据接入实现。根据供应商官方说明，商业展示需要 Business 方案，并仍受具体交易所许可约束；配置 API key 不等于已经获得展示或再分发权。
+
+完成合同和法务审批后，复制 `.env.production.example` 为 `.env`，再设置强随机密码、公开 HTTPS 域名和已授权的 API key：
+
+```dotenv
+JWT_SECRET=<至少32字符的随机值>
+POSTGRES_PASSWORD=<随机数据库密码>
+PUBLIC_WEB_ORIGIN=https://research.example.com
+TWELVE_DATA_API_KEY=<服务端API key>
+MARKET_DATA_LICENSE_APPROVED=true
+REGISTRATION_INVITE_CODE=<至少16字符的随机客户邀请码>
+```
+
+然后使用生产覆盖配置：
+
+```powershell
+docker compose -f compose.yaml -f compose.production.yaml up --build -d
+```
+
+公开入口必须置于提供 TLS 的负载均衡器或反向代理之后。生产覆盖配置会强制真实数据模式、HTTPS origin、Secure/HttpOnly Cookie、PostgreSQL 和许可确认；任一缺失都会拒绝启动。上线前逐项完成 [客户发布验收清单](docs/operations/customer-release-checklist.md)。
+
 ## 验证
 
 ```powershell
 npm.cmd run verify
+npm.cmd run audit
 ```
 
-该命令运行 TypeScript/Vue 类型检查、市场标识与产品 API 测试、Python 研究引擎测试及三端生产构建。
+`verify` 运行 TypeScript/Vue 类型检查、市场标识与产品 API 测试、Python 研究引擎测试及三端生产构建；`audit` 查询 Node 与 Python 生产依赖的已知漏洞。
 
 ## 当前设计文档
 
@@ -115,7 +149,6 @@ docs/                 产品、架构、数据和运维文档
 ## 下一增量
 
 1. 将 JSON Schema 发布到 `packages/shared-contracts` 并生成 TypeScript/Python 类型。
-2. 以规范化 Prisma 实体替换演示用 PostgreSQL aggregate store，并启用 RLS。
-3. 引入 Redis/BullMQ durable worker、outbox/inbox 和崩溃恢复。
-4. 在许可审批后接入真实行情供应商，继续保持 synthetic provider 作为测试适配器。
-5. 接入 provider-independent LLM gateway、报告证据 validator 和用量账本。
+2. 在多实例部署前引入 Redis/BullMQ durable worker、outbox/inbox；当前单实例会在启动时恢复未完成任务。
+3. 扩展已接入的真实日线 provider，增加经许可的基本面、公告和新闻数据。
+4. 接入 provider-independent LLM gateway、报告证据 validator 和用量账本。

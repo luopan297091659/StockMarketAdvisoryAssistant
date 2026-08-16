@@ -9,6 +9,8 @@ class SessionController extends ChangeNotifier {
   final ApiClient api;
   final FlutterSecureStorage _storage;
   UserProfile? user;
+  ProductConfig config = const ProductConfig.safeDefault();
+  bool configAvailable = false;
   String? _refreshToken;
   bool initialized = false;
   bool busy = false;
@@ -16,6 +18,12 @@ class SessionController extends ChangeNotifier {
   bool get isAuthenticated => user != null && api.accessToken != null;
 
   Future<void> restore() async {
+    try {
+      config = ProductConfig.fromJson(await api.get('/config'));
+      configAvailable = true;
+    } on ApiException catch (exception) {
+      error = exception.message;
+    }
     api.accessToken = await _storage.read(key: 'access_token');
     _refreshToken = await _storage.read(key: 'refresh_token');
     final id = await _storage.read(key: 'user_id');
@@ -33,7 +41,8 @@ class SessionController extends ChangeNotifier {
       {required bool register,
       required String email,
       required String password,
-      String? displayName}) async {
+      String? displayName,
+      String? inviteCode}) async {
     busy = true;
     error = null;
     notifyListeners();
@@ -42,7 +51,9 @@ class SessionController extends ChangeNotifier {
           await api.post('/auth/${register ? 'register' : 'login'}', {
         'email': email.trim(),
         'password': password,
-        if (register) 'displayName': displayName?.trim() ?? ''
+        if (register) 'displayName': displayName?.trim() ?? '',
+        if (register && inviteCode?.trim().isNotEmpty == true)
+          'inviteCode': inviteCode!.trim()
       });
       await _saveAuth(payload);
       return true;
@@ -79,7 +90,11 @@ class SessionController extends ChangeNotifier {
 
   Future<void> _saveAuth(Json payload, {bool keepExistingUser = false}) async {
     api.accessToken = payload['accessToken'] as String;
-    _refreshToken = payload['refreshToken'] as String;
+    _refreshToken = payload['refreshToken'] as String? ?? _refreshToken;
+    if (_refreshToken == null) {
+      throw const ApiException(
+          500, 'MOBILE_REFRESH_TOKEN_MISSING', '服务未启用移动端会话，请联系管理员');
+    }
     if (!keepExistingUser || user == null) {
       user = UserProfile.fromJson(payload['user'] as Json);
     }
@@ -93,6 +108,14 @@ class SessionController extends ChangeNotifier {
   }
 
   Future<void> signOut() async {
+    final token = _refreshToken;
+    if (token != null) {
+      try {
+        await api.post('/auth/logout', {'refreshToken': token});
+      } catch (_) {
+        // Local credentials must still be removed when the network is unavailable.
+      }
+    }
     api.accessToken = null;
     _refreshToken = null;
     user = null;

@@ -10,10 +10,16 @@ RUN npm install --ignore-scripts
 RUN npx prisma generate --schema apps/product-api/prisma/schema.prisma
 RUN npm run build --workspace @equity-atlas/market-identifiers && npm run build --workspace @equity-atlas/product-api
 
+FROM build AS migrator
+CMD ["npx", "prisma", "migrate", "deploy", "--schema", "apps/product-api/prisma/schema.prisma"]
+
+FROM build AS production-deps
+RUN npm prune --omit=dev
+
 FROM node:22.20.0-bookworm-slim AS runtime
 ENV NODE_ENV=production
 WORKDIR /workspace
-COPY --from=build /workspace/node_modules ./node_modules
+COPY --from=production-deps /workspace/node_modules ./node_modules
 COPY --from=build /workspace/packages/market-identifiers/package.json ./packages/market-identifiers/package.json
 COPY --from=build /workspace/packages/market-identifiers/dist ./packages/market-identifiers/dist
 COPY --from=build /workspace/apps/product-api/package.json ./apps/product-api/package.json
@@ -22,4 +28,3 @@ COPY --from=build /workspace/apps/product-api/prisma ./apps/product-api/prisma
 USER node
 EXPOSE 8000
 CMD ["node", "apps/product-api/dist/main.js"]
-
